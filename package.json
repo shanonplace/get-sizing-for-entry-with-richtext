@@ -1,0 +1,22 @@
+{
+  "name": "get-entry-size-for-each-locale",
+  "version": "1.0.0",
+  "description": "Node script to get entry content field size for each locale using Contentful CMA",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "contentful",
+    "cms",
+    "content-management",
+    "localization"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "contentful-management": "^11.27.0",
+    "dotenv": "^16.3.1"
+  }
+}
