@@ -32,11 +32,11 @@ A Node.js script that uses the Contentful Content Management API to retrieve a s
 ```
 📊 Analyzing content field 'content' sizes for each locale:
 
-✅ ar-AE    |    23.94 KB | Arabic (UAE)
-✅ ar-EG    |    23.94 KB | Arabic (Egypt)
-✅ en-US    |    24.12 KB | English (United States)
-✅ es-ES    |    24.85 KB | Spanish (Spain)
-❌ fr-FR    |     0.00 B  | French (France)
+✅ ar-AE    |    23.94 KB |     12.3K chars |     (65.2% overhead) | Arabic (UAE)
+✅ ar-EG    |    23.94 KB |     12.3K chars |     (65.2% overhead) | Arabic (Egypt)
+✅ en-US    |    24.12 KB |     12.5K chars |     (64.8% overhead) | English (United States)
+✅ es-ES    |    24.85 KB |     12.8K chars |     (66.1% overhead) | Spanish (Spain)
+❌ fr-FR    |     0.00 B  |        0 chars |                      | French (France)
 ...
 
 ======================================================================
@@ -46,8 +46,12 @@ A Node.js script that uses the Contentful Content Management API to retrieve a s
    Locales without content: 22
 
 📊 SIZE BREAKDOWN:
-   Total RichText Content field size: 1.61 MB
+   Total RichText Content field size: 1.61 MB (832.5K chars)
    Total Entry size (all fields): 1.72 MB
+
+📋 JSON OVERHEAD ANALYSIS:
+   Actual text content: 560.3 KB (287.2K chars)
+   JSON structure overhead: 1.07 MB (65.2%)
 
 ⚠️  CONTENTFUL LIMITS:
    Entry size limit: 2.00 MB (2MB)

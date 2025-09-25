@@ -30,6 +30,109 @@ function getByteSize(content) {
 }
 
 /**
+ * Calculate the character count of content (string or rich text JSON)
+ * @param {string|object} content - The content to measure
+ * @returns {number} Character count
+ */
+function getCharacterCount(content) {
+  if (!content) {
+    return 0;
+  }
+
+  // If it's already a string, count characters directly
+  if (typeof content === "string") {
+    return content.length;
+  }
+
+  // If it's an object (rich text JSON), stringify it first
+  if (typeof content === "object") {
+    const jsonString = JSON.stringify(content);
+    return jsonString.length;
+  }
+
+  return 0;
+}
+
+/**
+ * Extract plain text content from rich text JSON structure
+ * @param {object} richTextContent - Rich text JSON content
+ * @returns {string} Plain text content
+ */
+function extractPlainTextFromRichText(richTextContent) {
+  if (!richTextContent || typeof richTextContent !== "object") {
+    return "";
+  }
+
+  let plainText = "";
+
+  function traverse(node) {
+    if (node.value) {
+      plainText += node.value;
+    }
+    if (node.content && Array.isArray(node.content)) {
+      node.content.forEach(traverse);
+    }
+  }
+
+  traverse(richTextContent);
+  return plainText;
+}
+
+/**
+ * Calculate JSON overhead vs actual content
+ * @param {string|object} content - The content to analyze
+ * @returns {object} Analysis with totalSize, contentSize, overheadSize, overheadPercentage
+ */
+function analyzeContentOverhead(content) {
+  if (!content) {
+    return {
+      totalSize: 0,
+      contentSize: 0,
+      overheadSize: 0,
+      overheadPercentage: 0,
+    };
+  }
+
+  // If it's already a string, no overhead
+  if (typeof content === "string") {
+    const size = Buffer.byteLength(content, "utf8");
+    return {
+      totalSize: size,
+      contentSize: size,
+      overheadSize: 0,
+      overheadPercentage: 0,
+    };
+  }
+
+  // If it's rich text JSON, calculate overhead
+  if (typeof content === "object") {
+    const jsonString = JSON.stringify(content);
+    const totalSize = Buffer.byteLength(jsonString, "utf8");
+
+    const plainText = extractPlainTextFromRichText(content);
+    const contentSize = Buffer.byteLength(plainText, "utf8");
+
+    const overheadSize = totalSize - contentSize;
+    const overheadPercentage =
+      totalSize > 0 ? (overheadSize / totalSize) * 100 : 0;
+
+    return {
+      totalSize,
+      contentSize,
+      overheadSize,
+      overheadPercentage: parseFloat(overheadPercentage.toFixed(1)),
+    };
+  }
+
+  return {
+    totalSize: 0,
+    contentSize: 0,
+    overheadSize: 0,
+    overheadPercentage: 0,
+  };
+}
+
+/**
  * Format bytes into human-readable format
  * @param {number} bytes - Size in bytes
  * @returns {string} Formatted size string
@@ -42,6 +145,23 @@ function formatBytes(bytes) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
   return (bytes / Math.pow(k, i)).toFixed(2) + " " + sizes[i];
+}
+
+/**
+ * Format character count into human-readable format
+ * @param {number} chars - Character count
+ * @returns {string} Formatted character count string
+ */
+function formatCharacterCount(chars) {
+  if (chars === 0) return "0 chars";
+
+  if (chars < 1000) {
+    return chars + " chars";
+  } else if (chars < 1000000) {
+    return (chars / 1000).toFixed(1) + "K chars";
+  } else {
+    return (chars / 1000000).toFixed(1) + "M chars";
+  }
 }
 
 /**
@@ -139,6 +259,9 @@ async function analyzeEntryContentSizes() {
     // Analyze content field for each locale
     const results = [];
     let totalSize = 0;
+    let totalCharacters = 0;
+    let totalContentSize = 0;
+    let totalOverheadSize = 0;
     let localesWithContent = 0;
 
     // Sort locales alphabetically by code for consistent output
@@ -149,28 +272,42 @@ async function analyzeEntryContentSizes() {
       const localeName = locale.name;
       const content = contentField[localeCode];
       const sizeInBytes = getByteSize(content);
+      const characterCount = getCharacterCount(content);
+      const overheadAnalysis = analyzeContentOverhead(content);
       const formattedSize = formatBytes(sizeInBytes);
+      const formattedChars = formatCharacterCount(characterCount);
 
       results.push({
         localeCode,
         localeName,
         sizeInBytes,
+        characterCount,
         formattedSize,
+        formattedChars,
+        overheadAnalysis,
         hasContent: !!content,
       });
 
       if (content) {
         totalSize += sizeInBytes;
+        totalCharacters += characterCount;
+        totalContentSize += overheadAnalysis.contentSize;
+        totalOverheadSize += overheadAnalysis.overheadSize;
         localesWithContent++;
       }
 
       // Display result for this locale
       const statusIcon = content ? "✅" : "❌";
       const paddedCode = localeCode.padEnd(8);
-      const paddedSize = formattedSize.padStart(10);
+      const paddedSize = formattedSize.padStart(12);
+      const paddedChars = formattedChars.padStart(12);
+      const overheadInfo =
+        overheadAnalysis.overheadPercentage > 0
+          ? `(${overheadAnalysis.overheadPercentage}% overhead)`.padStart(18)
+          : "".padStart(18);
 
       console.log(
-        `${statusIcon} ${paddedCode} | ${paddedSize} | ${localeName}`
+        `${statusIcon} ${paddedCode} | ${paddedSize} | ${paddedChars} | ${overheadInfo} | ${localeName}`
       );
     });
 
@@ -198,10 +335,26 @@ async function analyzeEntryContentSizes() {
     console.log("");
     console.log("📊 SIZE BREAKDOWN:");
     console.log(
-      `   Total RichText Content field size: ${formatBytes(totalSize)}`
+      `   Total RichText Content field size: ${formatBytes(
+        totalSize
+      )} (${formatCharacterCount(totalCharacters)})`
     );
     console.log(
       `   Total Entry size (all fields): ${formatBytes(totalEntrySize)}`
+    );
+    console.log("");
+    console.log("📋 JSON OVERHEAD ANALYSIS:");
+    const overallOverheadPercentage =
+      totalSize > 0 ? ((totalOverheadSize / totalSize) * 100).toFixed(1) : 0;
+    console.log(
+      `   Actual text content: ${formatBytes(
+        totalContentSize
+      )} (${formatCharacterCount(totalContentSize)})`
+    );
+    console.log(
+      `   JSON structure overhead: ${formatBytes(
+        totalOverheadSize
+      )} (${overallOverheadPercentage}%)`
     );
     console.log("");
     console.log("⚠️  CONTENTFUL LIMITS:");
@@ -229,7 +382,9 @@ async function analyzeEntryContentSizes() {
       console.log(
         `   Average content size per locale: ${formatBytes(
           Math.round(totalSize / localesWithContent)
-        )}`
+        )} (${formatCharacterCount(
+          Math.round(totalCharacters / localesWithContent)
+        )})`
       );
     }
 
@@ -272,10 +427,10 @@ async function analyzeEntryContentSizes() {
       );
 
       console.log(
-        `   Largest content: ${largest.localeCode} (${largest.formattedSize})`
+        `   Largest content: ${largest.localeCode} (${largest.formattedSize}, ${largest.formattedChars})`
       );
       console.log(
-        `   Smallest content: ${smallest.localeCode} (${smallest.formattedSize})`
+        `   Smallest content: ${smallest.localeCode} (${smallest.formattedSize}, ${smallest.formattedChars})`
       );
     }
 
